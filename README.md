@@ -6,6 +6,7 @@ Changes made are as follows:
  - Output file as URDF instead of XACRO
  - Solve issue where components which have >1 joint with respect to which they are the "child" component, are wrongly transformed
  - Keeps the fusion design history clean (cleans up after itself)
+ - If a file already exists in the location with the ascribed name, creates a new version (appends "v1" etc.)
 
 -BELOW THIS THE README IS SAME AS ORIGINAL-
 
