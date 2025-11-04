@@ -3,6 +3,7 @@
 
 import adsk, adsk.core, adsk.fusion, traceback
 import os
+import re
 import sys
 from .utils import utils
 from .core import Link, Joint, Write
@@ -41,14 +42,43 @@ def run(context):
         # set the names        
         robot_name = root.name.split()[0]
         package_name = robot_name + '_description'
-        save_dir = utils.file_dialog(ui)
-        if save_dir == False:
+
+        # Ask user for target folder (base directory)
+        base_dir = utils.file_dialog(ui)
+        if base_dir == False:
             ui.messageBox('Fusion2URDF was canceled', title)
             return 0
-        
-        save_dir = save_dir + '/' + package_name
-        try: os.mkdir(save_dir)
-        except: pass     
+
+        # If a package with the same name already exists in the selected folder,
+        # append a version suffix _vN where N is 1 higher than the highest
+        # existing version number found. Existing names handled are:
+        #   package_name
+        #   package_name_v1, package_name_v2, ...
+        try:
+            existing_versions = []
+            for name in os.listdir(base_dir):
+                if name == package_name:
+                    existing_versions.append(0)
+                else:
+                    m = re.match(re.escape(package_name) + r'_v(\d+)$', name)
+                    if m:
+                        try:
+                            existing_versions.append(int(m.group(1)))
+                        except ValueError:
+                            pass
+            if existing_versions:
+                new_ver = max(existing_versions) + 1
+                package_name = f"{package_name}_v{new_ver}"
+        except Exception:
+            # If anything goes wrong (permissions, etc.), fall back to original name
+            pass
+
+        # Final save directory is the selected folder + package_name
+        save_dir = os.path.join(base_dir, package_name)
+        try:
+            os.mkdir(save_dir)
+        except:
+            pass    
 
         package_dir = os.path.abspath(os.path.dirname(__file__)) + '/package/'
         
@@ -89,9 +119,17 @@ def run(context):
         utils.update_cmakelists(save_dir, package_name)
         utils.update_package_xml(save_dir, package_name)
 
-        # Generate STl files        
-        utils.copy_occs(root)
-        utils.export_stl(design, save_dir, components)   
+        # Generate STl files
+        # copy_occs returns metadata about temporary components it created so we
+        # can clean them up afterward and restore original names.
+        copied_info = utils.copy_occs(root)
+        utils.export_stl(design, save_dir, components)
+        # delete temporary copied components and restore original names
+        try:
+            utils.delete_copied_components(root, copied_info)
+        except Exception:
+            # best-effort cleanup; ignore errors here to avoid blocking the user
+            pass
         
         ui.messageBox(msg, title)
         
