@@ -8,6 +8,8 @@ Changes made are as follows:
  - Keeps the fusion design history clean (cleans up after itself)
  - If a file already exists in the location with the ascribed name, creates a new version (appends "v1" etc.)
 
+To note - One thing the original readme does not mention is that the script does not work with as-built joints, so a good workaround to create joints in place is to use the "between two faces" origin mode when defining joint origins for respective components, and using some construction planes in the "parent" component to allow the origins to coincide
+
 -BELOW THIS THE README IS SAME AS ORIGINAL-
 
 ## **Changes Made**
