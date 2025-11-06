@@ -10,7 +10,7 @@ from xml.etree.ElementTree import Element, SubElement
 from ..utils import utils
 
 class Joint:
-    def __init__(self, name, xyz, axis, parent, child, joint_type, upper_limit, lower_limit):
+    def __init__(self, name, xyz, axis, parent, child, joint_type, upper_limit, lower_limit, mimic=None):
         """
         Attributes
         ----------
@@ -41,6 +41,8 @@ class Joint:
         self.axis = axis  # for 'revolute' and 'continuous'
         self.upper_limit = upper_limit  # for 'revolute' and 'prismatic'
         self.lower_limit = lower_limit  # for 'revolute' and 'prismatic'
+        # optional URDF mimic spec: {'joint': str, 'multiplier': float, 'offset': float}
+        self.mimic = mimic
         
     def make_joint_xml(self):
         """
@@ -62,6 +64,21 @@ class Joint:
             limit = SubElement(joint, 'limit')
             limit.attrib = {'upper': str(self.upper_limit), 'lower': str(self.lower_limit),
                             'effort': '100', 'velocity': '100'}
+        # Add URDF mimic if specified and applicable (revolute/prismatic only)
+        if self.mimic is not None and (self.type in ('revolute', 'continuous', 'prismatic')):
+            try:
+                mimic = SubElement(joint, 'mimic')
+                # Required joint attribute
+                attrs = {'joint': str(self.mimic.get('joint'))}
+                # Optional multiplier/offset
+                if 'multiplier' in self.mimic and self.mimic['multiplier'] is not None:
+                    attrs['multiplier'] = str(self.mimic['multiplier'])
+                if 'offset' in self.mimic and self.mimic['offset'] is not None:
+                    attrs['offset'] = str(self.mimic['offset'])
+                mimic.attrib = attrs
+            except Exception:
+                # Fail-safe: ignore mimic if malformed
+                pass
             
         self.joint_xml = "\n".join(utils.prettify(joint).split("\n")[1:])
 
@@ -364,9 +381,11 @@ def make_joints_dict(root, msg):
         try:
             comp1 = jdata['comp1']
             comp2 = jdata['comp2']
-            # choose parent as the node closer to base_link (smaller level)
+            # choose parent as the node closer to base_link (smaller level).
+            # If both are at the same level, prefer Fusion's convention:
+            # parent = component2, child = component1.
             if comp1 in levels and comp2 in levels:
-                if levels[comp1] <= levels[comp2]:
+                if levels[comp1] < levels[comp2]:
                     parent_name = comp1
                     child_name = comp2
                 else:
