@@ -2,7 +2,7 @@
 
 This is a **fork** of the original [syuntoku14/fusion2urdf](https://github.com/syuntoku14/fusion2urdf) repository. Forked as of 04/11/2025.
 
-# There is an issue in this script which is yet to be fixed as of 06/11/25, I wouldn't recommend using it for closed loop joint systems yet
+# I am still actively working on this so apologies for any issues that may crop up
 
 Changes made are as follows:
  - Output file as URDF instead of XACRO
