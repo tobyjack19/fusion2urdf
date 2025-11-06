@@ -42,7 +42,7 @@ def write_link_urdf(joints_dict, repo, links_xyz_dict, file_name, inertial_dict)
             inertia_tensor=inertial_dict['base_link']['inertia'])
         links_xyz_dict[link.name] = link.xyz
         link.make_link_xml()
-        f.write(link.link_xml)
+        f.write(link.link_xml or '')
         f.write('\n')
 
         # others
@@ -60,7 +60,7 @@ def write_link_urdf(joints_dict, repo, links_xyz_dict, file_name, inertial_dict)
                 inertia_tensor=inertial_dict[name]['inertia'])
             links_xyz_dict[link.name] = link.xyz            
             link.make_link_xml()
-            f.write(link.link_xml)
+            f.write(link.link_xml or '')
             f.write('\n')
 
 
@@ -88,6 +88,7 @@ def write_joint_urdf(joints_dict, repo, links_xyz_dict, file_name):
             joint_type = joints_dict[j]['type']
             upper_limit = joints_dict[j]['upper_limit']
             lower_limit = joints_dict[j]['lower_limit']
+            out_name = joints_dict[j].get('output_name', j)
             try:
                 xyz = [round(p-c, 6) for p, c in \
                     zip(links_xyz_dict[parent], links_xyz_dict[child])]  # xyz = parent - child
@@ -100,12 +101,20 @@ to swap component1<=>component2"
                 % (parent, child, parent, child), "Error!")
                 quit()
                 
-            joint = Joint.Joint(name=j, joint_type = joint_type, xyz=xyz, \
-            axis=joints_dict[j]['axis'], parent=parent, child=child, \
-            upper_limit=upper_limit, lower_limit=lower_limit)
+            joint = Joint.Joint(
+                name=out_name,
+                joint_type=joint_type,
+                xyz=xyz,
+                axis=joints_dict[j]['axis'],
+                parent=parent,
+                child=child,
+                upper_limit=upper_limit,
+                lower_limit=lower_limit,
+                mimic=joints_dict[j].get('mimic')
+            )
             joint.make_joint_xml()
             joint.make_transmission_xml()
-            f.write(joint.joint_xml)
+            f.write(joint.joint_xml or '')
             f.write('\n')
 
 def write_gazebo_endtag(file_name):
@@ -187,6 +196,7 @@ def write_transmissions_xacro(joints_dict, links_xyz_dict, inertial_dict, packag
             joint_type = joints_dict[j]['type']
             upper_limit = joints_dict[j]['upper_limit']
             lower_limit = joints_dict[j]['lower_limit']
+            out_name = joints_dict[j].get('output_name', j)
             try:
                 xyz = [round(p-c, 6) for p, c in \
                     zip(links_xyz_dict[parent], links_xyz_dict[child])]  # xyz = parent - child
@@ -199,12 +209,21 @@ to swap component1<=>component2"
                 % (parent, child, parent, child), "Error!")
                 quit()
                 
-            joint = Joint.Joint(name=j, joint_type = joint_type, xyz=xyz, \
-            axis=joints_dict[j]['axis'], parent=parent, child=child, \
-            upper_limit=upper_limit, lower_limit=lower_limit)
-            if joint_type != 'fixed':
+            joint = Joint.Joint(
+                name=out_name,
+                joint_type=joint_type,
+                xyz=xyz,
+                axis=joints_dict[j]['axis'],
+                parent=parent,
+                child=child,
+                upper_limit=upper_limit,
+                lower_limit=lower_limit,
+                mimic=joints_dict[j].get('mimic')
+            )
+            # Only non-fixed, non-mimic joints get transmissions
+            if joint_type != 'fixed' and joints_dict[j].get('mimic') is None:
                 joint.make_transmission_xml()
-                f.write(joint.tran_xml)
+                f.write(joint.tran_xml or '')
                 f.write('\n')
 
         f.write('</robot>\n')
@@ -374,8 +393,10 @@ def write_control_launch(package_name, robot_name, save_dir, joints_dict):
     controller_args_str = ""
     for j in joints_dict:
         joint_type = joints_dict[j]['type']
-        if joint_type != 'fixed':
-            controller_args_str += j + '_position_controller '
+        # Only non-fixed, non-mimic joints get controllers
+        if joint_type != 'fixed' and joints_dict[j].get('mimic') is None:
+            out_name = joints_dict[j].get('output_name', j)
+            controller_args_str += out_name + '_position_controller '
     controller_args_str += 'joint_state_controller '
 
     node_controller = Element('node')
@@ -436,9 +457,11 @@ def write_yaml(package_name, robot_name, save_dir, joints_dict):
         f.write('  # Position Controllers --------------------------------------\n')
         for joint in joints_dict:
             joint_type = joints_dict[joint]['type']
-            if joint_type != 'fixed':
-                f.write('  ' + joint + '_position_controller:\n')
+            # Skip mimic followers for controllers; control the leader only
+            if joint_type != 'fixed' and joints_dict[joint].get('mimic') is None:
+                out_name = joints_dict[joint].get('output_name', joint)
+                f.write('  ' + out_name + '_position_controller:\n')
                 f.write('    type: effort_controllers/JointPositionController\n')
-                f.write('    joint: '+ joint + '\n')
+                f.write('    joint: '+ out_name + '\n')
                 f.write('    pid: {p: 100.0, i: 0.01, d: 10.0}\n')
 
